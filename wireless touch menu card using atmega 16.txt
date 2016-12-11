@@ -1,0 +1,297 @@
+/*
+ * final.c
+ *
+ * Created: 8/31/2015 1:58:27 PM
+ *  Author: Saazan
+ */ 
+
+#define F_CPU 8000000UL
+#include <avr/io.h>
+#include <util/delay.h>
+#define BAUD 9600
+#define BAUDRATECALC  ((F_CPU/16/BAUD)-1)
+
+#define rs PC0
+#define rw PC1
+#define en PC2
+#define data PORTB
+#define y1 PA3
+#define x2 PA2
+#define y2 PA1
+#define x1 PA0
+int x=0,y=0;
+uint16_t result;
+
+void serial_write_string(char *);
+void view();
+void adc_init();
+void measure_x();
+void measure_y();
+char menu_selection();
+void lcd_init();
+void lcd_cmd(char cmd_out);
+void lcd_data(char data_out);
+void lcd_str(char *str);
+void serial_write(char);
+int main(void)
+	{
+	DDRB=0XFF;
+	PORTB=0x00;
+	DDRC=0XFF;
+	DDRA=0xFF;
+	DDRD=(0<<PIND7);
+	PORTD=(1<<PIND7);
+	DDRD=(0<<PIND2);
+	PORTD=(1<<PIND2);
+	DDRD=(0<<PIND3);
+	PORTD=(1<<PIND3);
+	DDRD=(0<<PIND4);
+	PORTD=(1<<PIND4);			
+	UCSRB = (1 << RXEN) | (1 << TXEN); 
+	UCSRC = (1 << URSEL) | (0<<UCSZ2)|(1 << UCSZ1) | (1 << UCSZ0)|(0<<USBS)|(0<<UMSEL);
+
+	UBRRH = (BAUDRATECALC >> 8); 
+	UBRRL = BAUDRATECALC; 
+	
+    adc_init();
+    lcd_init();
+		
+    while(1)
+    {
+				
+		int flag0=0;
+		int flag1=0;
+		int flag2=0;
+		int counter=0;
+		for(int i=0;i<5;i++)
+		{
+			measure_x();
+		}
+				
+				while(1)
+				{
+					if(bit_is_clear(PIND,7))
+					break;
+					lcd_cmd(0xc0);
+					lcd_str("Select Menu");
+					measure_x();								 
+					char a;
+					a=menu_selection();
+					if(a=='m'&&flag0==0)
+						{	
+							lcd_str("momo selected");
+							_delay_ms(1000);
+							flag0=1;
+							lcd_cmd(0x01);
+							lcd_str("Enter Quantity");
+							while(1)
+								{
+									lcd_cmd(0xc0);
+									lcd_data((0x30+((counter/10)%10)));
+									lcd_data((0x30+(counter)%10));
+										if(bit_is_clear(PIND,2))
+											{
+												counter++;
+												_delay_ms(300);	
+											}
+										if(bit_is_clear(PIND,3))
+											{
+												counter--;
+												_delay_ms(300);											
+											}
+												
+										if(bit_is_clear(PIND,4))
+											break;
+																
+								}
+								serial_write_string("\n");
+								for(int i=0;i<counter;i++)
+								{
+									serial_write(a);
+								}
+								serial_write_string("\n");
+								
+			}
+				if(a=='c'&&flag1==0)
+					{
+						lcd_str("chowmein selected");
+						_delay_ms(1000);
+						flag1=1;
+						lcd_cmd(0x01);
+						lcd_str("Enter Quantity");
+						while(1)
+						{
+							lcd_cmd(0xc0);
+							lcd_data((0x30+((counter/10)%10)));
+							lcd_data((0x30+(counter)%10));
+							if(bit_is_clear(PIND,2))
+							{
+								counter++;
+								_delay_ms(300);						
+							}
+							if(bit_is_clear(PIND,3))
+							{
+								counter--;
+							    _delay_ms(300);
+							}
+							if(bit_is_clear(PIND,4))
+							{
+								break;
+							}
+						}
+						serial_write_string("\n");
+						for(int i=0;i<counter;i++)
+						{
+							serial_write(a);
+						}
+						serial_write_string("\n");
+						}
+				else if(a=='d'&& flag2==0)
+					{
+						lcd_str("coke selected");
+						_delay_ms(1000);
+						flag2=1;
+						lcd_cmd(0x01);
+						lcd_str("Enter Quantity");
+						while(1)
+							{
+								lcd_cmd(0xc0);
+								lcd_data((0x30+((counter/10)%10)));
+								lcd_data((0x30+(counter)%10));
+									if(bit_is_clear(PIND,2))
+										{
+											counter++;
+											_delay_ms(300);
+										}
+									if(bit_is_clear(PIND,3))
+										{
+											counter--;
+											_delay_ms(300);
+										}
+									if(bit_is_clear(PIND,4))
+										{
+											break;
+										}
+							}
+							serial_write_string("\n");
+							for(int i=0;i<counter;i++)
+							{
+								serial_write(a);
+							}	
+							serial_write_string("\n");							
+						}
+				/*else if((a!='m')||(a!='c')||(a!='d'))
+					{
+						lcd_cmd(0x01);
+						lcd_str("try again");
+					}*/
+			
+		}
+	}	    
+}
+
+void serial_write(char a)
+	{
+		lcd_cmd(0x01);
+		lcd_data(a);
+						
+		for(int i=0;i<1;i++)
+			{
+				while ((UCSRA & (1 << UDRE)) == 0) {}; // Do nothing until UDR is ready for more data to be written to it
+				UDR = a; // Echo back the received byte back to the computer
+			}
+	}
+
+void lcd_data(char data_out)
+	{ 
+		data=data_out;
+		PORTC=(1<<rs)|(0<<rw)|(1<<en);
+		_delay_ms(10);
+		PORTC=(1<<rs)|(0<<rw)|(0<<en);
+		_delay_ms(10);
+	}
+void lcd_init()
+	{   
+		lcd_cmd(0X38);
+		lcd_cmd(0X0C);
+		lcd_cmd(0X06);
+		lcd_cmd(0x01);
+    }
+void lcd_cmd(char cmd_out)
+	{ 
+		data=cmd_out;
+		PORTC=(0<<rs)|(0<<rw)|(1<<en);
+		_delay_ms(10);
+		PORTC=(0<<rs)|(0<<rw)|(0<<en);
+		_delay_ms(10);
+    }
+
+void measure_x()
+	{
+	    
+		PORTA=((0<<x2)|(1<<x1));
+		ADMUX |= 3;
+		ADCSRA |=(1<<ADSC);
+		while(!(ADCSRA&0x10)==0x10);
+		ADCSRA|=(1<<ADIF);
+		x=ADC;
+		lcd_cmd(0x80);
+		view(x);
+	    	       
+	}
+
+char menu_selection(void)
+	{
+				
+		if((x>14)&&(x<28))
+			{
+				lcd_cmd(0xc0);
+				return 'm';
+			}
+		else if((x>6)&&(x<14))
+			{
+				lcd_cmd(0xc0);
+				return 'c';
+			}
+		else if((x>0)&&(x<6))	
+			{
+				lcd_cmd(0xc0);
+				return 'd';
+			}
+		else if(x>300)
+			{
+				lcd_str("invalid");
+			}
+		return 0;
+	}
+void lcd_str(char *str)
+	{	
+		unsigned int i=0;
+		while(str[i]!='\0')
+			{
+				lcd_data(str[i]);
+				i++;
+			}
+	}		
+void adc_init()
+		{
+			ADMUX |=(1<<REFS0);
+			ADCSRA|=(1<<ADEN)|(1<<ADPS1);
+		}
+void view(uint16_t adxl)
+		{
+			lcd_data((0x30+((adxl/1000)%10)));
+			lcd_data((0x30+((adxl/100)%10)));
+			lcd_data((0x30+((adxl/10)%10)));
+			lcd_data((0x30+(adxl%10)));
+		}		
+			
+void serial_write_string(char *variable)
+{
+	int l=strlen(variable);
+	for(int i=0;i<l;i++)
+	{
+		serial_write(variable[i]);
+	}
+}
+
